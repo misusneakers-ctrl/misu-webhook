@@ -1,4 +1,4 @@
-import { findOrder } from '../lib/shopify.js';
+import { findOrder, getDeliveredAt } from '../lib/shopify.js';
 import { assignLabel } from '../lib/dropbox.js';
 import { sendReturnEvent } from '../lib/klaviyo.js';
 
@@ -23,7 +23,14 @@ const LABEL_URLS = {
   10: `${LABEL_BASE}10.pdf?v=1788520026`
 };
 
-const RETURN_WINDOW_DAYS = 15;
+// Droit de rétractation : 14 jours calendaires à compter de la RÉCEPTION
+// (art. L221-18, repris à l'article 6 des CGV).
+// Quand la date de livraison n'est pas remontée par le transporteur, on
+// estime 7 jours d'acheminement et on compte donc 21 jours depuis
+// l'expédition — volontairement plus large, pour ne jamais être plus
+// restrictif que ce qu'annoncent les CGV.
+const RETURN_WINDOW_DAYS = 14;
+const ESTIMATED_DELIVERY_DAYS = 7;
 const DEPOSIT_DEADLINE = '3 jours';
 
 export default async function handler(req, res) {
@@ -53,11 +60,25 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Cette commande n'a pas encore été expédiée." });
     }
 
-    const shippedDate = new Date(fulfillment.createdAt);
-    const daysAgo = Math.floor((new Date() - shippedDate) / (1000 * 60 * 60 * 24));
-    if (daysAgo > RETURN_WINDOW_DAYS) {
+    const deliveredAt = getDeliveredAt(order);
+    const daysSince = (date) => Math.floor((new Date() - new Date(date)) / 86400000);
+
+    let expired;
+    let daysAgo;
+    if (deliveredAt) {
+      daysAgo = daysSince(deliveredAt);
+      expired = daysAgo > RETURN_WINDOW_DAYS;
+    } else {
+      daysAgo = daysSince(fulfillment.createdAt);
+      expired = daysAgo > RETURN_WINDOW_DAYS + ESTIMATED_DELIVERY_DAYS;
+    }
+
+    if (expired) {
+      const repere = deliveredAt
+        ? `Votre commande a été livrée il y a ${daysAgo} jours`
+        : `Votre commande a été expédiée il y a ${daysAgo} jours`;
       return res.status(400).json({
-        error: `Délai de retour dépassé (commande expédiée il y a ${daysAgo} jours, max ${RETURN_WINDOW_DAYS}).`
+        error: `Le délai de retour est dépassé. ${repere}, au-delà des 14 jours prévus par nos conditions générales de vente. Nous ne pouvons donc pas accepter ce retour.`
       });
     }
 
@@ -100,7 +121,9 @@ export default async function handler(req, res) {
       success: true,
       trackingNumber: label.tracking_number,
       labelUrl,
-      depositDeadline: DEPOSIT_DEADLINE
+      depositDeadline: DEPOSIT_DEADLINE,
+      reused: Boolean(label.reused),
+      deliveredAt: deliveredAt || null
     });
   } catch (err) {
     console.error(err);
