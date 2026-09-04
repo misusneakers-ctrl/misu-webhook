@@ -24,7 +24,7 @@ const LABEL_URLS = {
 };
 
 const RETURN_WINDOW_DAYS = 15;
-const DEPOSIT_DEADLINE = '5 jours ouvrés';
+const DEPOSIT_DEADLINE = '3 jours';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', 'https://misu-sneakers.fr');
