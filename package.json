@@ -2,5 +2,6 @@
   "name": "misu-portal-api",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "description": "API webhook pour le Portail Client MISÜ (suivi de commande + retours)"
 }
