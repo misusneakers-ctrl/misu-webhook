@@ -41,10 +41,15 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { orderNumber, zipCode, returnType, product, size } = req.body || {};
+  const { orderNumber, zipCode, returnType, product, size, reason, comment } = req.body || {};
 
-  if (!orderNumber || !zipCode || !returnType) {
+  if (!orderNumber || !zipCode || !returnType || !reason) {
     return res.status(400).json({ error: 'Champs manquants' });
+  }
+
+  // Un motif « autre » sans explication ne produit aucune donnée exploitable.
+  if (reason === 'OTHER' && !String(comment || '').trim()) {
+    return res.status(400).json({ error: 'Merci de préciser le motif de votre retour.' });
   }
 
   try {
@@ -82,7 +87,7 @@ export default async function handler(req, res) {
       });
     }
 
-    const label = await assignLabel(order.name, { returnType, product, size });
+    const label = await assignLabel(order.name, { returnType, product, size, reason, comment });
     if (!label) {
       return res
         .status(500)
@@ -113,6 +118,8 @@ export default async function handler(req, res) {
       size: size || null,
       trackingNumber: label.tracking_number,
       labelNumber: label.label_number,
+      reason,
+      comment: comment || null,
       labelUrl,
       depositDeadline: DEPOSIT_DEADLINE
     });
