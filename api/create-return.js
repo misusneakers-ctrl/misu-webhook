@@ -50,7 +50,16 @@ const LABEL_FEE = 5.9;
 const LOW_STOCK_THRESHOLD = 3;
 const RESERVE_DAYS = 30;
 
-const VALID_REASONS = ['TOO_SMALL', 'TOO_BIG', 'COLOR_MISMATCH', 'NOT_LIKED', 'OTHER'];
+// NOT_AS_PICTURED remplace COLOR_MISMATCH, qui ne parlait que de couleur.
+// L'ancien code reste accepté : des retours en cours le portent encore.
+const VALID_REASONS = [
+  'TOO_SMALL',
+  'TOO_BIG',
+  'NOT_AS_PICTURED',
+  'COLOR_MISMATCH',
+  'NOT_LIKED',
+  'OTHER'
+];
 const VALID_ACTIONS = ['REFUND', 'EXCHANGE'];
 
 function cleanText(value) {
@@ -224,7 +233,7 @@ export default async function handler(req, res) {
         email: order.email,
         variantIds: exchangeVariantIds,
         originOrderName: order.name,
-        returnId: returnId || `retour ${order.name}`,
+        returnId: returnId || null,
         reserveDays: RESERVE_DAYS
       });
     }
@@ -297,8 +306,12 @@ export default async function handler(req, res) {
       });
 
       if (draft) {
+        // Le brouillon porte enfin son identifiant de retour, visible
+        // directement dans la liste des brouillons.
+        await addOrderTags(draft.id, [finalReturnId]).catch(() => {});
         await setReturnMetafields(draft.id, {
           origin_order: order.name,
+          return_id: finalReturnId,
           return_status: 'REQUESTED',
           settlement
         }).catch(() => {});
