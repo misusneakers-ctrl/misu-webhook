@@ -82,7 +82,7 @@ export default async function handler(req, res) {
       });
     }
 
-    const label = await assignLabel(order.name);
+    const label = await assignLabel(order.name, { returnType, product, size });
     if (!label) {
       return res
         .status(500)
@@ -123,6 +123,7 @@ export default async function handler(req, res) {
       labelUrl,
       depositDeadline: DEPOSIT_DEADLINE,
       reused: Boolean(label.reused),
+      updated: Boolean(label.updated),
       deliveredAt: deliveredAt || null
     });
   } catch (err) {
