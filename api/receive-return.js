@@ -40,7 +40,9 @@ export default async function handler(req, res) {
     const found = await findReturnByTracking(tracking);
     if (!found) {
       return res.status(404).json({
-        error: "Aucun retour ne correspond à cette étiquette. Vérifiez que le colis vient bien d'une demande enregistrée."
+        error: "Aucun retour ne correspond à cette étiquette.",
+        scanned: String(tracking).trim(),
+        hint: "Une étiquette porte plusieurs codes-barres : celui du suivi, mais aussi des codes de tri. Vise celui qui se trouve sous le numéro de suivi imprimé en clair, ou saisis-le à la main."
       });
     }
 
