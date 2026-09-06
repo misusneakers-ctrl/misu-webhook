@@ -296,6 +296,7 @@ export default async function handler(req, res) {
       await addOrderTags(order.id, ['retour-en-cours']);
       await appendOrderNote(
         order.id,
+        finalReturnId,
         `[${finalReturnId}] ${resume}. Étiquette ${result.labelNumber} (${result.trackingNumber}).${fee ? ` Frais retenus : ${LABEL_FEE} €.` : ' Retour gratuit (échange).'}`
       );
       await setReturnMetafields(order.id, {
