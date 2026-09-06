@@ -228,9 +228,33 @@ export default async function handler(req, res) {
     const previous = existingReturns.find((r) => r.returnId === returnId);
 
     if (exchangeVariantIds.length) {
+      // L'adresse de la commande d'origine est reprise telle quelle : sur
+      // une livraison en point relais, c'est celle du relais choisi.
+      const addr = order.shippingAddress || null;
+      const shippingAddress = addr
+        ? {
+            firstName: addr.firstName || undefined,
+            lastName: addr.lastName || undefined,
+            company: addr.company || undefined,
+            address1: addr.address1 || undefined,
+            address2: addr.address2 || undefined,
+            city: addr.city || undefined,
+            zip: addr.zip || undefined,
+            provinceCode: addr.provinceCode || undefined,
+            countryCode: addr.countryCodeV2 || undefined,
+            phone: addr.phone || undefined
+          }
+        : null;
+
       draft = await createExchangeDraft({
         customerId: order.customer?.id || null,
         email: order.email,
+        shippingAddress,
+        shippingTitle: order.shippingLine?.title || null,
+        customAttributes: (order.customAttributes || []).map((a) => ({
+          key: a.key,
+          value: a.value
+        })),
         variantIds: exchangeVariantIds,
         originOrderName: order.name,
         returnId: returnId || null,

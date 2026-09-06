@@ -94,17 +94,36 @@ export default async function handler(req, res) {
         }
       }
 
+      // Montant à rembourser, calculé mais jamais exécuté : le remboursement
+      // reste une action manuelle de Luc dans Shopify.
+      const refund = computeRefund(found.items, result.received, order);
+
       if (order) {
-        await addOrderTags(order.id, ['retour-recu']).catch(() => {});
+        const tags = ['retour-recu'];
+        if (refund.amount > 0) tags.push('remboursement-a-faire');
+
+        await addOrderTags(order.id, tags).catch(() => {});
         await removeOrderTags(order.id, ['retour-en-cours']).catch(() => {});
         await appendOrderNote(
           order.id,
           result.returnId,
-          `[${result.returnId}] Colis reçu et conforme.${exchangeOrder ? ` Échange à préparer : ${exchangeOrder.name}.` : ''}`
+          `[${result.returnId}] Colis reçu et conforme.` +
+            (exchangeOrder ? ` Échange à préparer : ${exchangeOrder.name}.` : '') +
+            (refund.amount > 0
+              ? ` À REMBOURSER À LA MAIN : ${refund.amount.toFixed(2)} € (${refund.detail}).`
+              : ' Aucun remboursement à effectuer.')
         ).catch(() => {});
         await setReturnMetafields(order.id, {
           return_status: 'RECEIVED',
-          exchange_order: exchangeOrder?.name || ''
+          exchange_order: exchangeOrder?.name || '',
+          settlement: {
+            type: refund.amount > 0 ? 'REFUND_DUE' : 'NONE',
+            amount: Number(refund.amount.toFixed(2)),
+            currency: 'EUR',
+            fee: refund.fee,
+            detail: refund.detail,
+            manual: true
+          }
         }).catch(() => {});
       }
     } else {
@@ -133,6 +152,7 @@ export default async function handler(req, res) {
       missing: result.missing,
       unexpected: result.unexpected,
       received: result.received,
+      refund: result.complete ? computeRefund(found.items, result.received, order) : null,
       exchangeOrder: exchangeOrder?.name || null,
       hasPendingExchange: Boolean(found.draftOrderId) && !result.complete
     });
@@ -140,4 +160,34 @@ export default async function handler(req, res) {
     console.error(err);
     return res.status(500).json({ error: 'Erreur serveur' });
   }
+}
+
+const LABEL_FEE = 5.9;
+
+// Calcule ce qui est dû à la cliente, sans jamais l'exécuter.
+//
+// Seuls les articles effectivement reçus et demandés en remboursement sont
+// comptés. Les 5,90 € de l'étiquette ne sont retenus que si le colis ne
+// contenait aucun échange, conformément à la règle commerciale.
+function computeRefund(expected, received, order) {
+  const prices = new Map();
+  (order?.lineItems?.nodes || []).forEach((l) =>
+    prices.set(l.id, Number(l.discountedUnitPriceSet?.shopMoney?.amount || 0))
+  );
+
+  const refunded = (received || []).filter((i) => i.action === 'REFUND');
+  const gross = refunded.reduce((sum, i) => sum + (prices.get(i.lineItemId) || 0), 0);
+
+  if (gross <= 0) {
+    return { amount: 0, fee: 0, detail: 'aucun article à rembourser' };
+  }
+
+  const hasExchange = (expected || []).some((i) => i.action === 'EXCHANGE');
+  const fee = hasExchange ? 0 : LABEL_FEE;
+  const amount = Math.max(0, gross - fee);
+
+  const detail = `${refunded.length} article${refunded.length > 1 ? 's' : ''} à ${gross.toFixed(2)} €` +
+    (fee ? ` moins ${fee.toFixed(2)} € d'étiquette` : ', étiquette offerte');
+
+  return { amount, fee, detail };
 }
