@@ -15,27 +15,18 @@
 import { findOrder, getCatalog, getDeliveredAt, createExchangeDraft, deleteDraft, addOrderTags, appendOrderNote, setReturnMetafields } from '../lib/shopify.js';
 import { createReturn, updateReturn, getReturnsForOrder } from '../lib/dropbox.js';
 import { sendReturnEvent } from '../lib/klaviyo.js';
+import { sendLowStockAlert, shouldAlert } from '../lib/alerts.js';
+import { signReturnId } from './label.js';
 
-// Les PDF d'étiquettes sont hébergés dans les fichiers Shopify.
-// Shopify a remplacé les espaces par des underscores à l'upload, et ajoute
-// un paramètre de version propre à chaque fichier : les URLs sont donc
-// écrites telles quelles, et non reconstruites. Si une étiquette est
-// réuploadée un jour, son URL change et doit être mise à jour ici.
-const LABEL_BASE =
-  'https://cdn.shopify.com/s/files/1/1018/0562/1630/files/202609021636-10-Bons_Baisers_de_Paname-part-';
+// L'étiquette n'est plus servie depuis Shopify : le lien envoyé à la
+// cliente pointe sur notre serveur, qui fabrique à chaque clic un lien
+// Dropbox frais. Le lien du mail ne périme donc jamais, et il n'y a plus
+// de liste d'URLs à tenir à jour à chaque nouveau lot d'étiquettes.
+const LABEL_ENDPOINT = 'https://misu-webhook.vercel.app/api/label';
 
-const LABEL_URLS = {
-  1: `${LABEL_BASE}1.pdf?v=1788520026`,
-  2: `${LABEL_BASE}2.pdf?v=1788520026`,
-  3: `${LABEL_BASE}3.pdf?v=1788520026`,
-  4: `${LABEL_BASE}4.pdf?v=1788520026`,
-  5: `${LABEL_BASE}5.pdf?v=1788520026`,
-  6: `${LABEL_BASE}6.pdf?v=1788520026`,
-  7: `${LABEL_BASE}7.pdf?v=1788520025`,
-  8: `${LABEL_BASE}8.pdf?v=1788520026`,
-  9: `${LABEL_BASE}9.pdf?v=1788520026`,
-  10: `${LABEL_BASE}10.pdf?v=1788520026`
-};
+function labelUrlFor(returnId) {
+  return `${LABEL_ENDPOINT}?r=${encodeURIComponent(returnId)}&t=${signReturnId(returnId)}`;
+}
 
 // Droit de rétractation : 14 jours calendaires à compter de la RÉCEPTION
 // (art. L221-18, repris à l'article 6 des CGV).
@@ -47,7 +38,6 @@ const RETURN_WINDOW_DAYS = 14;
 const ESTIMATED_DELIVERY_DAYS = 7;
 const DEPOSIT_DEADLINE = '3 jours';
 const LABEL_FEE = 5.9;
-const LOW_STOCK_THRESHOLD = 3;
 const RESERVE_DAYS = 30;
 
 // NOT_AS_PICTURED remplace COLOR_MISMATCH, qui ne parlait que de couleur.
@@ -289,20 +279,15 @@ export default async function handler(req, res) {
     }
 
     const finalReturnId = result.returnId;
-    const labelUrl = LABEL_URLS[Number(result.labelNumber)] || null;
+    const labelUrl = labelUrlFor(finalReturnId);
 
-    // Si le PDF est introuvable, on continue quand même : la cliente reçoit
-    // au moins son numéro de suivi, et l'anomalie est visible dans les logs.
-    if (!labelUrl) {
-      console.error(
-        `Aucune URL de PDF pour l'étiquette ${result.labelNumber} (retour ${finalReturnId})`
-      );
-    }
-
-    if (typeof result.remaining === 'number' && result.remaining <= LOW_STOCK_THRESHOLD) {
-      console.error(
-        `Stock d'étiquettes bas : ${result.remaining} restantes après le retour ${finalReturnId}`
-      );
+    // Alerte sur paliers : 10, 5, 3, 2, 1, 0. Chacun n'est franchi qu'une
+    // fois, ce qui évite un email à chaque retour.
+    if (typeof result.remaining === 'number' && shouldAlert(result.remaining)) {
+      await sendLowStockAlert(result.remaining, {
+        returnId: finalReturnId,
+        orderName: order.name
+      }).catch(() => {});
     }
 
     // Écritures sur la commande d'origine. Aucune n'est bloquante : la
