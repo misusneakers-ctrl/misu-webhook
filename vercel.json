@@ -1,0 +1,13 @@
+{
+  "crons": [
+    {
+      "path": "/api/mondial-relay/point-auto",
+      "schedule": "*/10 * * * *"
+    }
+  ],
+  "functions": {
+    "api/mondial-relay/point-auto.js": { "maxDuration": 60 },
+    "api/mondial-relay/order-point.js": { "maxDuration": 30 },
+    "api/webhooks/mr-order-created.js": { "maxDuration": 30 }
+  }
+}

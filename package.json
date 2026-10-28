@@ -3,5 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "API webhook pour le Portail Client MISÜ (suivi de commande + retours)"
+  "description": "API webhook pour le Portail Client MISÜ (suivi de commande + retours)",
+  "scripts": {
+    "test": "node scripts/test-mondial-relay.js && node scripts/test-mr-point-auto.js"
+  }
 }
