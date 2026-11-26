@@ -6,8 +6,29 @@
     }
   ],
   "functions": {
-    "api/mondial-relay/point-auto.js": { "maxDuration": 60 },
-    "api/mondial-relay/order-point.js": { "maxDuration": 30 },
-    "api/webhooks/mr-order-created.js": { "maxDuration": 30 }
+    "api/mondial-relay/point-auto.js": {
+      "maxDuration": 60
+    },
+    "api/mondial-relay/order-point.js": {
+      "maxDuration": 30
+    },
+    "api/webhooks/mr-order-created.js": {
+      "maxDuration": 30
+    },
+    "api/receive-return.js": {
+      "maxDuration": 60
+    },
+    "api/create-return.js": {
+      "maxDuration": 60
+    },
+    "api/sav/refund.js": {
+      "maxDuration": 60
+    },
+    "api/sav/avoir.js": {
+      "maxDuration": 60
+    },
+    "api/reception-app.js": {
+      "maxDuration": 10
+    }
   }
 }

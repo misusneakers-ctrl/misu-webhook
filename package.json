@@ -3,8 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "API webhook pour le Portail Client MISÜ (suivi de commande + retours)",
+  "description": "API webhook pour le Portail Client MIS\u00dc (suivi de commande + retours)",
   "scripts": {
-    "test": "node scripts/test-mondial-relay.js && node scripts/test-mr-point-auto.js"
+    "test": "node scripts/test-mondial-relay.js && node scripts/test-mr-point-auto.js && npm run test:retours",
+    "test:retours": "node retours/scripts/test-settlement.cjs && node retours/scripts/test-order-payments.cjs && node retours/scripts/test-inventory.cjs && node retours/scripts/test-sav-actions.cjs && node retours/scripts/test-reception-incident.cjs && node retours/scripts/test-store-credit.cjs"
   }
 }
